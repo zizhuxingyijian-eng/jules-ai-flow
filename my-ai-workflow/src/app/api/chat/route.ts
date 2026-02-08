@@ -2,8 +2,8 @@ import { google } from '@ai-sdk/google';
 import { streamObject } from 'ai';
 import { z } from 'zod';
 
-// Using 'gemini-3-pro-preview' as requested (closest to "gemini3.0 pro")
-const model = google('gemini-3-pro-preview');
+// Using 'gemini-flash-latest' as it has valid free tier access
+const model = google('gemini-flash-latest');
 
 export const maxDuration = 60;
 
