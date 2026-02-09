@@ -5,9 +5,8 @@ import { experimental_useObject as useObject } from '@ai-sdk/react';
 import { z } from 'zod';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Loader2, CheckCircle, Save, Play, FileText, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, Save, Play, FileText, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
 const WorkflowSchema = z.object({
   title: z.string(),
@@ -32,10 +31,9 @@ const STATUS_LABELS: Record<string, string> = {
 export default function AssistantPage() {
   const [status, setStatus] = useState<WorkflowStatus>('idle');
   const [notionData, setNotionData] = useState<{ url: string; id: string } | null>(null);
-  const [manusResult, setManusResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { object, submit, isLoading, error: aiError, stop } = useObject({
+  const { object, submit, isLoading } = useObject({
     api: '/api/chat',
     schema: WorkflowSchema,
     onFinish: (result) => {
@@ -56,7 +54,6 @@ export default function AssistantPage() {
 
     setStatus('thinking');
     setNotionData(null);
-    setManusResult(null);
     setErrorMsg(null);
 
     submit({ messages: [{ role: 'user', content: input }] });
@@ -91,7 +88,7 @@ export default function AssistantPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to execute');
-      setManusResult(data);
+      // setManusResult(data);
       setStatus('completed');
     } catch (err: any) {
       setStatus('error');

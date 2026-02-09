@@ -1,208 +1,199 @@
-import { Client } from '@notionhq/client';
 import { NextRequest, NextResponse } from 'next/server';
+import { Client } from '@notionhq/client';
+import { z } from 'zod';
 
-const notion = new Client({ auth: process.env.NOTION_API_KEY });
+const notion = new Client({
+  auth: process.env.NOTION_API_KEY,
+});
+
 const databaseId = process.env.NOTION_DATABASE_ID;
 
-// Helper to parse simple markdown to Notion RichText
-function parseRichText(text: string): any[] {
-  const parts = [];
-  let currentText = '';
-  let i = 0;
-
-  while (i < text.length) {
-    if (text.startsWith('**', i)) {
-      if (currentText) parts.push({ text: { content: currentText } });
-      currentText = '';
-      i += 2;
-      const end = text.indexOf('**', i);
-      if (end !== -1) {
-        parts.push({ text: { content: text.substring(i, end) }, annotations: { bold: true } });
-        i = end + 2;
-      } else {
-        currentText += '**';
-        i += 2;
-      }
-    } else if (text.startsWith('*', i)) { // Simple italic check, might conflict with bullet but we handle bullets outside
-      if (currentText) parts.push({ text: { content: currentText } });
-      currentText = '';
-      i += 1;
-      const end = text.indexOf('*', i);
-      if (end !== -1) {
-        parts.push({ text: { content: text.substring(i, end) }, annotations: { italic: true } });
-        i = end + 1;
-      } else {
-        currentText += '*';
-        i += 1;
-      }
-    } else if (text.startsWith('`', i)) {
-        if (currentText) parts.push({ text: { content: currentText } });
-        currentText = '';
-        i += 1;
-        const end = text.indexOf('`', i);
-        if (end !== -1) {
-            parts.push({ text: { content: text.substring(i, end) }, annotations: { code: true } });
-            i = end + 1;
-        } else {
-            currentText += '`';
-            i += 1;
-        }
-    } else {
-      currentText += text[i];
-      i++;
-    }
-  }
-  if (currentText) parts.push({ text: { content: currentText } });
-  return parts.length > 0 ? parts : [{ text: { content: " " } }];
-}
-
-function markdownToBlocks(markdown: string) {
-  const blocks: any[] = [];
-  const lines = markdown.split('\n');
-  let inCodeBlock = false;
-  let codeContent = '';
-  let codeLanguage = 'plain text';
-
-  for (const line of lines) {
-    // Code Block Handling
-    if (line.trim().startsWith('```')) {
-        if (inCodeBlock) {
-            // End of code block
-            blocks.push({
-                code: {
-                    rich_text: [{ text: { content: codeContent.trim() || " " } }],
-                    language: "plain text" // Notion strict on languages, defaulting to plain text is safer
-                }
-            });
-            inCodeBlock = false;
-            codeContent = '';
-        } else {
-            // Start of code block
-            inCodeBlock = true;
-            // Attempt to extract language but fallback to plain text if not supported
-            codeLanguage = line.trim().replace('```', '').trim() || 'plain text';
-        }
-        continue;
-    }
-
-    if (inCodeBlock) {
-        codeContent += line + '\n';
-        continue;
-    }
-
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    if (trimmed.startsWith('# ')) {
-      blocks.push({
-        heading_1: {
-          rich_text: parseRichText(trimmed.replace('# ', '')),
-        },
-      });
-    } else if (trimmed.startsWith('## ')) {
-      blocks.push({
-        heading_2: {
-          rich_text: parseRichText(trimmed.replace('## ', '')),
-        },
-      });
-    } else if (trimmed.startsWith('### ')) {
-      blocks.push({
-        heading_3: {
-          rich_text: parseRichText(trimmed.replace('### ', '')),
-        },
-      });
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      blocks.push({
-        bulleted_list_item: {
-          rich_text: parseRichText(trimmed.replace(/^[-*] /, '')),
-        },
-      });
-    } else if (trimmed.match(/^\d+\. /)) {
-        blocks.push({
-            numbered_list_item: {
-                rich_text: parseRichText(trimmed.replace(/^\d+\. /, '')),
-            },
-        });
-    } else {
-      blocks.push({
-        paragraph: {
-          rich_text: parseRichText(trimmed),
-        },
-      });
-    }
-  }
-  return blocks;
-}
+// Define schema for incoming data (matches Gemini Zod output)
+const RequestSchema = z.object({
+  title: z.string(),
+  detailedReport: z.string(),
+  agentInstructions: z.string(),
+  tags: z.array(z.string()),
+  priority: z.enum(['High', 'Medium', 'Low'])
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const { title, detailedReport, agentInstructions, tags, priority } = await req.json();
+    const body = await req.json();
+    const data = RequestSchema.parse(body);
 
     if (!databaseId) {
-      return NextResponse.json({ error: 'Missing NOTION_DATABASE_ID' }, { status: 500 });
+      throw new Error("NOTION_DATABASE_ID is not configured");
     }
 
-    const blocks = markdownToBlocks(detailedReport);
+    // 1. Convert Markdown Report to Notion Blocks (Simplified)
+    // For a robust implementation, we would need a full AST parser like remark -> notion-blocks.
+    // Here we implement a basic parser for headings, lists, and paragraphs.
+    const reportBlocks = parseMarkdownToBlocks(data.detailedReport);
 
-    // Append Agent Instructions
-    blocks.push({
-      heading_2: {
-        rich_text: [{ text: { content: "Agent Instructions" } }]
-      }
-    });
-    blocks.push({
-      paragraph: {
-        rich_text: [{ text: { content: agentInstructions } }]
-      }
-    });
-
-    // Append Metadata
-    blocks.push({
-        heading_3: {
-            rich_text: [{ text: { content: "Metadata" } }]
-        }
-    });
-    blocks.push({
-        paragraph: {
-            rich_text: [{ text: { content: `Tags: ${tags.join(', ')} | Priority: ${priority}` } }]
-        }
-    });
-
-    // Chunking Logic (Max 100 blocks per request)
-    const MAX_BLOCKS = 100;
-    const initialBlocks = blocks.slice(0, MAX_BLOCKS);
-    const remainingBlocks = blocks.slice(MAX_BLOCKS);
-
-    const payload: any = {
-        parent: { database_id: databaseId },
-        properties: {
-            "Name": {
-                title: [
-                    { text: { content: title } }
-                ]
-            }
+    // 2. Add Agent Instructions section
+    const instructionBlocks = [
+      {
+        object: 'block',
+        type: 'heading_2',
+        heading_2: {
+          rich_text: [{ type: 'text', text: { content: 'Agent Instructions (Manus)' } }],
         },
-        children: initialBlocks
-    };
+      },
+      {
+        object: 'block',
+        type: 'code',
+        code: {
+          rich_text: [{ type: 'text', text: { content: data.agentInstructions } }],
+          language: 'plain text'
+        },
+      }
+    ];
 
-    const response = await notion.pages.create(payload);
+    const allChildren = [...reportBlocks, ...instructionBlocks];
 
-    // If there are remaining blocks, append them in batches
-    if (remainingBlocks.length > 0) {
-        let offset = 0;
-        while (offset < remainingBlocks.length) {
-            const batch = remainingBlocks.slice(offset, offset + MAX_BLOCKS);
-            await notion.blocks.children.append({
-                block_id: response.id,
-                children: batch
-            });
-            offset += MAX_BLOCKS;
+    // Notion allows max 100 blocks per request. We must chunk it.
+    // Actually, creating a page accepts children.
+    // If children > 100, we create page first with 100, then append.
+
+    const first100 = allChildren.slice(0, 100);
+    const remaining = allChildren.slice(100);
+
+    // Create Page
+    const response = await notion.pages.create({
+      parent: { database_id: databaseId },
+      properties: {
+        Name: {
+          title: [
+            {
+              text: {
+                content: data.title,
+              },
+            },
+          ],
+        },
+        Priority: {
+          select: {
+            name: data.priority,
+          },
+        },
+        Tags: {
+          multi_select: data.tags.map(tag => ({ name: tag })),
+        },
+        Status: {
+           status: {
+               name: "Not Started"
+           }
         }
+      },
+      children: first100 as any[], // Typing for Notion SDK blocks is complex
+    });
+
+    // Append remaining blocks if any
+    if (remaining.length > 0) {
+      // Chunk remaining into 100s
+      for (let i = 0; i < remaining.length; i += 100) {
+         const chunk = remaining.slice(i, i + 100);
+         await notion.blocks.children.append({
+             block_id: response.id,
+             children: chunk as any[]
+         });
+      }
     }
 
-    return NextResponse.json({ url: (response as any).url, id: response.id });
+    return NextResponse.json({
+        success: true,
+        url: (response as any).url,
+        id: response.id
+    });
+
   } catch (error: any) {
     console.error("Notion API Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to create Notion page" }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
+}
+
+// --- Helper: Basic Markdown Parser ---
+// This is a simplified parser. In production, use a library.
+function parseMarkdownToBlocks(markdown: string): any[] {
+  const lines = markdown.split('\n');
+  const blocks: any[] = [];
+
+  let currentListType: 'bulleted_list_item' | 'numbered_list_item' | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Headings
+    if (trimmed.startsWith('# ')) {
+      blocks.push({
+        object: 'block',
+        type: 'heading_1',
+        heading_1: { rich_text: [{ type: 'text', text: { content: trimmed.substring(2) } }] }
+      });
+      currentListType = null;
+    } else if (trimmed.startsWith('## ')) {
+      blocks.push({
+        object: 'block',
+        type: 'heading_2',
+        heading_2: { rich_text: [{ type: 'text', text: { content: trimmed.substring(3) } }] }
+      });
+      currentListType = null;
+    } else if (trimmed.startsWith('### ')) {
+      blocks.push({
+        object: 'block',
+        type: 'heading_3',
+        heading_3: { rich_text: [{ type: 'text', text: { content: trimmed.substring(4) } }] }
+      });
+      currentListType = null;
+    }
+    // Lists
+    else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      blocks.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: parseRichText(trimmed.substring(2)) }
+      });
+    }
+    // Tables (Very basic detection, converting to code block for preservation)
+    else if (trimmed.startsWith('|')) {
+        blocks.push({
+            object: 'block',
+            type: 'code',
+            code: {
+                rich_text: [{ type: 'text', text: { content: trimmed } }],
+                language: 'markdown' // Use markdown syntax highlighting for table rows
+            }
+        });
+    }
+    // Paragraphs
+    else {
+      blocks.push({
+        object: 'block',
+        type: 'paragraph',
+        paragraph: { rich_text: parseRichText(trimmed) }
+      });
+    }
+  }
+
+  return blocks;
+}
+
+function parseRichText(text: string): any[] {
+    // Very basic bold handling: **text**
+    const parts = text.split(/(\*\*.*?\*\*)/);
+    return parts.map(part => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return {
+                type: 'text',
+                text: { content: part.slice(2, -2) },
+                annotations: { bold: true }
+            };
+        }
+        return {
+            type: 'text',
+            text: { content: part }
+        };
+    }).filter(p => p.text.content.length > 0);
 }
