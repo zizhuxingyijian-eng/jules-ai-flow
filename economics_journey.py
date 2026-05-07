@@ -183,109 +183,94 @@ class NormalFormGame:
 
 
 # ================================================================
-# VISUALIZATION — 3 panels
+# VISUALIZATION — ASCII terminal output
 # ================================================================
 
-def plot_economics(u_fn, output="economics_journey.png"):
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    fig.suptitle(
-        "Preference  →  Utility  →  Strategic Interaction",
-        fontsize=15, fontweight="bold", y=1.01
-    )
+def ascii_plot(u_fn):
+
+    def section(title):
+        bar = "─" * 62
+        print(f"\n┌{bar}┐")
+        print(f"│  {title:<60}│")
+        print(f"└{bar}┘")
 
     # ----------------------------------------------------------
-    # Panel 1: Preference as ordinal ranking
+    # Panel 1: Preference — 2D scatter grid
     # ----------------------------------------------------------
-    ax = axes[0]
-    # choose bundles so some are indifferent (same Cobb-Douglas U)
+    section("Layer 1 — Preferences  (ordinal ranking & indifference)")
+
     bundles = [(1, 4), (2, 2), (4, 1), (3, 3), (1, 1)]
     labels  = ["A",    "B",    "C",    "D",    "E"]
     utils   = [u_fn(b) for b in bundles]
+    ranked  = sorted(zip(utils, labels, bundles), reverse=True)
 
-    norm_u  = np.array(utils) / max(utils)
-    colors  = plt.cm.RdYlGn(norm_u)
+    GW, GH = 38, 11
+    grid = [["·"] * GW for _ in range(GH)]
+    for lbl, (bx, by) in zip(labels, bundles):
+        col = min(GW - 1, round((bx / 5.0) * (GW - 1)))
+        row = min(GH - 1, GH - 1 - round((by / 5.0) * (GH - 1)))
+        grid[row][col] = lbl
 
-    xs = [b[0] for b in bundles]
-    ys = [b[1] for b in bundles]
-    ax.scatter(xs, ys, c=colors, s=220, zorder=5, edgecolors="k", linewidths=0.8)
-
-    for lbl, (x, y), u in zip(labels, bundles, utils):
-        ax.annotate(
-            f"{lbl}  U={u:.2f}", (x, y),
-            textcoords="offset points", xytext=(8, 6), fontsize=9
-        )
-
-    # annotate the indifference: A~B~C (all U=2.0 when alpha=beta=0.5)
-    ax.annotate(
-        "A ~ B ~ C\n(same utility)", xy=(2, 2),
-        xytext=(0.3, 3.5), fontsize=8.5, color="steelblue",
-        arrowprops=dict(arrowstyle="->", color="steelblue", lw=0.8)
-    )
-
-    ax.set_xlim(0, 5); ax.set_ylim(0, 5)
-    ax.set_xlabel("Good X", fontsize=11); ax.set_ylabel("Good Y", fontsize=11)
-    ax.set_title("Layer 1 — Preferences\nordinal ranking & indifference", fontsize=11)
-    ax.grid(True, alpha=0.3)
+    print(f"\n  Good Y")
+    for r in range(GH):
+        y_val = 5.0 * (GH - 1 - r) / (GH - 1)
+        lbl_y = f"{y_val:.0f}" if r % (GH // 5) == 0 else " "
+        rank_idx = r - 1
+        rank_str = ""
+        if 0 <= rank_idx < len(ranked):
+            u, lb, b = ranked[rank_idx]
+            rank_str = f"  {rank_idx+1}. {lb}={b}  U={u:.2f}"
+        print(f"  {lbl_y:1s} │{''.join(grid[r])}{rank_str}")
+    print(f"    └" + "─" * GW)
+    print(f"      0        1        2        3        4        5  Good X")
+    print(f"\n  A~B~C all have U=2.00 → same indifference curve")
+    print(f"  D has U=3.00 (higher curve) ;  E has U=1.00 (lower curve)")
 
     # ----------------------------------------------------------
-    # Panel 2: Utility — indifference curves & optimum
+    # Panel 2: Utility — indifference curves + budget + optimum
     # ----------------------------------------------------------
-    ax = axes[1]
+    section("Layer 2 — Utility Function  U(x,y) = √x · √y")
+
+    GW2, GH2 = 50, 16
+    x_max, y_max = 5.5, 5.5
     u_levels = [1.0, 1.5, 2.0, 2.5, 3.0]
-    palette  = plt.cm.Blues(np.linspace(0.35, 0.85, len(u_levels)))
+    u_chars  = ["1",  "2",  "3",  "4",  "5"]
 
-    for u_lv, color in zip(u_levels, palette):
-        x, y = u_fn.indifference_curve(u_lv)
-        mask = (y > 0.05) & (y < 5.5)
-        ax.plot(x[mask], y[mask], color=color, lw=2, label=f"U = {u_lv}")
+    grid2 = [[" "] * GW2 for _ in range(GH2)]
+    for ri in range(GH2):
+        for ci in range(GW2):
+            x = 0.15 + (ci / (GW2 - 1)) * x_max
+            y = y_max - (ri / (GH2 - 1)) * y_max
+            if x <= 0 or y <= 0:
+                continue
+            u = u_fn((x, y))
+            for lv, ch in zip(u_levels, u_chars):
+                if abs(u - lv) / lv < 0.07:
+                    grid2[ri][ci] = ch
+                    break
+            # budget line x+y=6
+            if abs(x + y - 6.0) < 0.13 and 0.2 < x < 5.9 and 0.2 < y < 5.9:
+                grid2[ri][ci] = "/"
+    # optimal point (3, 3)
+    oc = round((3.0 / x_max) * (GW2 - 1))
+    or_ = round(((y_max - 3.0) / y_max) * (GH2 - 1))
+    grid2[or_][oc] = "★"
 
-    # Budget line: I=6, px=py=1
-    income, px, py = 6, 1, 1
-    x_b = np.array([0, income / px])
-    ax.plot(x_b, income / py - (py / px) * x_b, "r--", lw=1.8, alpha=0.8,
-            label=f"Budget (I={income})")
-
-    x_star, y_star = u_fn.maximize(income, px, py)
-    u_star = u_fn((x_star, y_star))
-    ax.scatter([x_star], [y_star], color="red", s=160, zorder=6,
-               label=f"Optimum ({x_star:.1f}, {y_star:.1f})\nU={u_star:.2f}")
-
-    ax.set_xlim(0, 5.5); ax.set_ylim(0, 5.5)
-    ax.set_xlabel("Good X", fontsize=11); ax.set_ylabel("Good Y", fontsize=11)
-    ax.set_title("Layer 2 — Utility Function\nCobb-Douglas U(x,y)=√x·√y", fontsize=11)
-    ax.legend(fontsize=8, loc="upper right"); ax.grid(True, alpha=0.3)
+    print(f"\n  Curves: 1=U1.0  2=U1.5  3=U2.0  4=U2.5  5=U3.0")
+    print(f"  /=budget line (I=6, px=py=1)   ★=optimum (3,3) U=3.00\n")
+    print(f"  Good Y")
+    for ri in range(GH2):
+        y_val = y_max - (ri / (GH2 - 1)) * y_max
+        lbl_y = f"{y_val:.1f}" if ri % 4 == 0 else "    "
+        print(f"  {lbl_y:4s} │{''.join(grid2[ri])}")
+    print(f"        └" + "─" * GW2)
+    print(f"         0" + "".join(f"{'':>8}{v:.0f}" for v in [1, 2, 3, 4, 5]) + "  Good X")
+    print(f"\n  Budget tangent to curve '5' at ★ → optimal split x*=3, y*=3")
 
     # ----------------------------------------------------------
-    # Panel 3: Strategic Interaction — Prisoner's Dilemma heatmap
+    # Panel 3: Games — printed via NormalFormGame.print_matrix()
     # ----------------------------------------------------------
-    ax = axes[2]
-    payoff_grid = np.array([
-        [[-1, -1], [-3,  0]],
-        [[ 0, -3], [-2, -2]],
-    ], dtype=float)
-    strategies = ["Cooperate", "Defect"]
-
-    # heatmap of Player 1's payoffs
-    p1_mat = payoff_grid[:, :, 0]
-    im = ax.imshow(p1_mat, cmap="RdYlGn", vmin=-3.5, vmax=0.5, aspect="auto")
-    plt.colorbar(im, ax=ax, label="Player 1 payoff", shrink=0.8)
-
-    nash_cells = {(1, 1)}   # (Defect, Defect)
-    for i in range(2):
-        for j in range(2):
-            p1, p2 = int(payoff_grid[i, j, 0]), int(payoff_grid[i, j, 1])
-            mark = " ★" if (i, j) in nash_cells else ""
-            ax.text(j, i, f"({p1}, {p2}){mark}", ha="center", va="center",
-                    fontsize=13, fontweight="bold")
-
-    ax.set_xticks([0, 1]); ax.set_xticklabels(strategies, fontsize=10)
-    ax.set_yticks([0, 1]); ax.set_yticklabels(strategies, fontsize=10)
-    ax.set_xlabel("Player 2", fontsize=11); ax.set_ylabel("Player 1", fontsize=11)
-    ax.set_title("Layer 3 — Strategic Interaction\nPrisoner's Dilemma  ★ = Nash Eq.", fontsize=11)
-
-    plt.tight_layout()
-    fig.savefig(output, dpi=150, bbox_inches="tight")
-    print(f"\nPlot saved → {output}")
+    section("Layer 3 — Strategic Interaction  (★ = Nash Equilibrium)")
 
 
 # ================================================================
@@ -400,8 +385,8 @@ def main():
      → Emergent phenomena: coordination failures, social dilemmas
     """)
 
-    # ---- Plot ---------------------------------------------------
-    plot_economics(u_fn, "/home/user/jules-ai-flow/economics_journey.png")
+    # ---- ASCII Visualization ------------------------------------
+    ascii_plot(u_fn)
 
 
 if __name__ == "__main__":
