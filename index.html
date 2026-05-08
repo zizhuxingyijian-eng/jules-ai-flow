@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经济学：偏好 → 效用 → 策略互动</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f0f2f5;
+  color: #222;
+  padding: 28px 20px;
+  min-height: 100vh;
+}
+h1 {
+  text-align: center;
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: -0.3px;
+}
+.arrow-chain {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 30px;
+  font-size: 0.95rem;
+  color: #555;
+}
+.arrow-chain span {
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.tag1 { background:#dbeafe; color:#1d4ed8; }
+.tag2 { background:#dcfce7; color:#15803d; }
+.tag3 { background:#fef3c7; color:#b45309; }
+.arrow { color:#aaa; font-size:1.2rem; }
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 22px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.panel {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+}
+.panel-header { margin-bottom: 16px; }
+.panel-header h2 { font-size: 1rem; color: #111; margin-bottom: 3px; }
+.panel-header p  { font-size: 0.8rem; color: #888; }
+
+.insight {
+  margin-top: 14px;
+  padding: 10px 13px;
+  background: #f8faff;
+  border-left: 3px solid #4a90d9;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.83rem;
+  line-height: 1.6;
+  color: #444;
+}
+svg { display: block; width: 100%; }
+
+/* ---- Game tables ---- */
+.games { display: flex; flex-direction: column; gap: 18px; }
+.game-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: #333; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { border: 1px solid #e5e7eb; padding: 9px 12px; text-align: center; }
+th { background: #f9fafb; font-weight: 600; color: #555; }
+.c-good  { background: #d1fae5; }
+.c-bad   { background: #fee2e2; }
+.c-nash  { background: #fef9c3; font-weight: 700; }
+.star    { color: #d97706; font-size: 1rem; }
+
+/* ---- Tooltip ---- */
+.tooltip {
+  position: fixed;
+  background: rgba(20,20,30,0.88);
+  color: #fff;
+  padding: 6px 11px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 99;
+}
+</style>
+</head>
+<body>
+
+<h1>偏好 → 效用 → 策略互动</h1>
+<div class="arrow-chain">
+  <span class="tag1">① 偏好关系</span>
+  <span class="arrow">→</span>
+  <span class="tag2">② 效用函数</span>
+  <span class="arrow">→</span>
+  <span class="tag3">③ 博弈均衡</span>
+</div>
+
+<div class="panels">
+
+  <!-- Panel 1: Preferences -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Layer 1 — 偏好关系</h2>
+      <p>序数排名 · 无差异曲线 · 公理验证</p>
+    </div>
+    <svg id="svg-pref" viewBox="0 0 300 260"></svg>
+    <div class="insight">
+      <strong>A ~ B ~ C</strong>（三点效用均为 2.00，落在同一无差异曲线上）<br>
+      偏好是<em>序数</em>的：只有排名有意义，绝对数值不重要。<br>
+      完备性 ✓ &nbsp; 传递性 ✓ → 偏好可被效用函数表示。
+    </div>
+  </div>
+
+  <!-- Panel 2: Utility -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Layer 2 — 效用函数与最优选择</h2>
+      <p>Cobb-Douglas &nbsp; U(x, y) = √x · √y</p>
+    </div>
+    <svg id="svg-util" viewBox="0 0 300 260"></svg>
+    <div class="insight">
+      红色虚线为预算约束（I=6，p<sub>x</sub>=p<sub>y</sub>=1）。<br>
+      <strong>★ 最优点 (3, 3)</strong>：预算线与最高无差异曲线相切，U* = 3.00。<br>
+      MRS = MRT → α=β=0.5 时，两种商品各花一半预算。
+    </div>
+  </div>
+
+  <!-- Panel 3: Games -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Layer 3 — 策略互动（博弈论）</h2>
+      <p>纳什均衡 ★ · 占优策略 · 协调问题</p>
+    </div>
+    <div class="games">
+      <div>
+        <div class="game-title">囚徒困境 <small style="color:#888;font-weight:400">— 个体理性 vs 集体最优</small></div>
+        <table>
+          <thead><tr><th></th><th>合作</th><th>背叛</th></tr></thead>
+          <tbody>
+            <tr>
+              <th>合作</th>
+              <td class="c-good">−1, −1</td>
+              <td class="c-bad">−3, &nbsp;0</td>
+            </tr>
+            <tr>
+              <th>背叛</th>
+              <td class="c-bad">0, −3</td>
+              <td class="c-nash">−2, −2 <span class="star">★</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="game-title">性别战争 <small style="color:#888;font-weight:400">— 协调问题</small></div>
+        <table>
+          <thead><tr><th></th><th>歌剧</th><th>足球</th></tr></thead>
+          <tbody>
+            <tr>
+              <th>歌剧</th>
+              <td class="c-nash">2, 1 <span class="star">★</span></td>
+              <td>0, 0</td>
+            </tr>
+            <tr>
+              <th>足球</th>
+              <td>0, 0</td>
+              <td class="c-nash">1, 2 <span class="star">★</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="insight">
+      <strong>囚徒困境：</strong>背叛是双方占优策略 → 唯一均衡，但集体更差（社会困境）。<br>
+      <strong>性别战争：</strong>两个纳什均衡 → 协调问题，需要承诺机制或焦点。
+    </div>
+  </div>
+
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const ML=40, MR=12, MT=12, MB=32, VW=300, VH=260;
+const PW = VW-ML-MR, PH = VH-MT-MB;
+const XM=5.5, YM=5.5;
+
+function sx(x){ return ML + (x/XM)*PW; }
+function sy(y){ return MT + PH - (y/YM)*PH; }
+
+function el(tag, attrs, txt){
+  const e = document.createElementNS(NS, tag);
+  for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+  if(txt!==undefined) e.textContent = txt;
+  return e;
+}
+
+function axes(svg){
+  svg.appendChild(el('line',{x1:ML,y1:MT+PH,x2:VW-MR,y2:MT+PH,stroke:'#ccc','stroke-width':1}));
+  svg.appendChild(el('line',{x1:ML,y1:MT,x2:ML,y2:MT+PH,stroke:'#ccc','stroke-width':1}));
+  for(let v=1;v<=5;v++){
+    svg.appendChild(el('text',{x:sx(v),y:MT+PH+14,'text-anchor':'middle','font-size':9,fill:'#aaa'},v));
+    svg.appendChild(el('text',{x:ML-4,y:sy(v)+3,'text-anchor':'end','font-size':9,fill:'#aaa'},v));
+    svg.appendChild(el('line',{x1:sx(v),y1:MT+PH,x2:sx(v),y2:MT+PH+4,stroke:'#ccc','stroke-width':1}));
+    svg.appendChild(el('line',{x1:ML-3,y1:sy(v),x2:ML,y2:sy(v),stroke:'#ccc','stroke-width':1}));
+  }
+  svg.appendChild(el('text',{x:VW-MR,y:MT+PH+14,'text-anchor':'end','font-size':10,fill:'#888'},'X'));
+  svg.appendChild(el('text',{x:ML+2,y:MT-2,'text-anchor':'start','font-size':10,fill:'#888'},'Y'));
+}
+
+function curve(uLevel, color, dashed){
+  const pts=[];
+  for(let x=0.08;x<=5.45;x+=0.03){
+    const y=(uLevel*uLevel)/x;
+    if(y>0.05&&y<5.5) pts.push(`${sx(x).toFixed(1)},${sy(y).toFixed(1)}`);
+  }
+  const attrs={d:'M'+pts.join('L'),stroke:color,'stroke-width':1.8,fill:'none'};
+  if(dashed) attrs['stroke-dasharray']='5,3';
+  return el('path',attrs);
+}
+
+/* ============================================================
+   Panel 1 — Preferences
+   ============================================================ */
+(function(){
+  const svg = document.getElementById('svg-pref');
+  axes(svg);
+
+  // Indifference curve U=2 (A~B~C lie on it)
+  svg.appendChild(curve(2,'#93c5fd',true));
+  svg.appendChild(el('text',{x:sx(0.2)+2,y:sy(4.8),'font-size':9,fill:'#93c5fd','font-weight':'bold'},'U=2'));
+
+  const bundles=[{l:'A',x:1,y:4,u:2},{l:'B',x:2,y:2,u:2},{l:'C',x:4,y:1,u:2},
+                 {l:'D',x:3,y:3,u:3},{l:'E',x:1,y:1,u:1}];
+  const colMap={1:'#fb923c',2:'#4ade80',3:'#22c55e'};
+
+  bundles.forEach(b=>{
+    const cx=sx(b.x), cy=sy(b.y);
+    const col=colMap[b.u]||'#60a5fa';
+    svg.appendChild(el('circle',{cx,cy,r:9,fill:col,stroke:'#fff','stroke-width':2,'style':'cursor:pointer'}));
+    svg.appendChild(el('text',{x:cx,y:cy+4,'text-anchor':'middle','font-size':10,'font-weight':'bold',fill:'#fff','pointer-events':'none'},b.l));
+
+    const offset = b.l==='A'?[-26,0] : b.l==='C'?[14,0] : b.l==='D'?[12,-6] : b.l==='E'?[12,0] : [12,0];
+    svg.appendChild(el('text',{x:cx+offset[0]+14,y:cy+offset[1]+4,'font-size':8.5,fill:'#666','pointer-events':'none'},`U=${b.u}.00`));
+  });
+
+  // Ranking label
+  const rank=[['D','U=3.00','#22c55e'],['A','U=2.00','#4ade80'],['B','U=2.00','#4ade80'],['C','U=2.00','#4ade80'],['E','U=1.00','#fb923c']];
+  rank.forEach(([l,u,c],i)=>{
+    svg.appendChild(el('circle',{cx:VW-28,cy:MT+8+i*18,r:6,fill:c}));
+    svg.appendChild(el('text',{x:VW-20,y:MT+12+i*18,'font-size':8.5,fill:'#555'},`${l} — ${u}`));
+  });
+})();
+
+/* ============================================================
+   Panel 2 — Utility & optimum
+   ============================================================ */
+(function(){
+  const svg = document.getElementById('svg-util');
+  axes(svg);
+
+  const levels=[1,1.5,2,2.5,3];
+  const colors=['#bfdbfe','#93c5fd','#60a5fa','#3b82f6','#1d4ed8'];
+  levels.forEach((u,i)=>{
+    svg.appendChild(curve(u,colors[i],false));
+    const lx=0.15, ly=(u*u)/lx;
+    if(ly<5.4)
+      svg.appendChild(el('text',{x:sx(lx)+2,y:sy(ly),'font-size':8,fill:colors[i],'font-weight':'bold'},u));
+  });
+
+  // Budget line x+y=6
+  svg.appendChild(el('line',{x1:sx(0.5),y1:sy(5.5),x2:sx(5.5),y2:sy(0.5),
+    stroke:'#ef4444','stroke-width':2,'stroke-dasharray':'6,3'}));
+  svg.appendChild(el('text',{x:sx(4.6),y:sy(1.6)-7,'font-size':9,fill:'#ef4444'},'I=6'));
+
+  // Optimal point (3,3)
+  svg.appendChild(el('circle',{cx:sx(3),cy:sy(3),r:7,fill:'#ef4444',stroke:'#fff','stroke-width':2}));
+  svg.appendChild(el('text',{x:sx(3)+10,y:sy(3)-6,'font-size':10,'font-weight':'bold',fill:'#dc2626'},'★ (3,3)'));
+  svg.appendChild(el('text',{x:sx(3)+10,y:sy(3)+6,'font-size':8.5,fill:'#dc2626'},"U*=3.00"));
+
+  // Dotted lines to axes
+  svg.appendChild(el('line',{x1:sx(3),y1:sy(3),x2:sx(3),y2:sy(0),stroke:'#fca5a5','stroke-width':1,'stroke-dasharray':'3,3'}));
+  svg.appendChild(el('line',{x1:sx(3),y1:sy(3),x2:sx(0),y2:sy(3),stroke:'#fca5a5','stroke-width':1,'stroke-dasharray':'3,3'}));
+
+  // Legend
+  levels.forEach((u,i)=>{
+    svg.appendChild(el('rect',{x:VW-42,y:MT+4+i*16,width:10,height:8,fill:colors[i],rx:2}));
+    svg.appendChild(el('text',{x:VW-28,y:MT+12+i*16,'font-size':8.5,fill:'#555'},`U=${u}`));
+  });
+})();
+</script>
+</body>
+</html>
